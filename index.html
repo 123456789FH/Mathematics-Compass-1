@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b3a6f">
+  <meta name="description" content="بوصلة رياضيات ١: منصة تشغيلية لاكتشاف احتياج أعضاء ملتقى الرياضيات ودعم الاستعداد للرخصة المهنية.">
+  <title>بوصلة رياضيات ١</title>
+  <link rel="icon" href="assets/images/logo.jpg">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="connectionBanner" class="connection-banner hidden" role="status"></div>
+
+  <main id="authView" class="auth-layout">
+    <section class="auth-brand" aria-label="تعريف المنصة">
+      <div class="brand-logo"><img src="assets/images/logo.jpg" alt="شعار ملتقى التعليم التفاعلي"></div>
+      <span class="eyebrow">منصة تشغيلية ذكية</span>
+      <h1>بوصلة رياضيات ١</h1>
+      <p>تكتشف احتياج الأعضاء، توجّههم إلى المحتوى الأنسب، وتمنح المشرفين مؤشرات حقيقية لاتخاذ القرار.</p>
+      <div class="auth-features">
+        <span>تشخيص مهني</span><span>بنك مسائل</span><span>رصد احتياج</span><span>لوحة مشرف</span>
+      </div>
+    </section>
+
+    <section class="auth-panel" aria-label="الدخول إلى المنصة">
+      <div class="auth-card">
+        <div class="auth-tabs" role="tablist">
+          <button id="loginTab" class="active" type="button" role="tab" aria-selected="true">تسجيل الدخول</button>
+          <button id="signupTab" type="button" role="tab" aria-selected="false">إنشاء حساب</button>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+          <h2>مرحبًا بعودتك</h2>
+          <p>ادخل باسمك ورقم الدخول الخاص بك لعرض خطتك ونتائجك.</p>
+          <label>الاسم الكامل<input id="loginName" type="text" autocomplete="name" required minlength="3" maxlength="80" placeholder="اكتب اسمك المسجل"></label>
+          <label>رقم الدخول الخاص<input id="loginMemberNumber" type="text" inputmode="numeric" autocomplete="username" required minlength="5" maxlength="12" placeholder="مثال: ١٢٣٤٥"></label>
+          <small class="auth-help">رقم الدخول خاص بك، ويجب ألا يعرفه غيرك.</small>
+          <button class="primary wide" type="submit">دخول</button>
+          <div id="demoAccounts" class="demo-accounts hidden">
+            <p><strong>معاينة سريعة:</strong></p>
+            <button type="button" data-demo-login="member">دخول كعضو تجريبي</button>
+            <button type="button" data-demo-login="supervisor">دخول كمشرف تجريبي</button>
+          </div>
+        </form>
+
+        <form id="signupForm" class="auth-form hidden">
+          <h2>إنشاء حساب عضو</h2>
+          <p>اختر رقم دخول فريدًا واحفظه؛ ستستخدمه للدخول من أي جهاز.</p>
+          <label>الاسم الكامل<input id="signupName" type="text" autocomplete="name" required minlength="3" maxlength="80"></label>
+          <label>رقم الدخول الخاص<input id="signupMemberNumber" type="text" inputmode="numeric" autocomplete="new-password" required minlength="5" maxlength="12" placeholder="من ٥ إلى ١٢ رقمًا"></label>
+          <small class="auth-help">يفضل اختيار ٨ أرقام أو أكثر وعدم مشاركتها مع الآخرين.</small>
+          <button class="primary wide" type="submit">إنشاء الحساب</button>
+        </form>
+      </div>
+      <p class="auth-footer">أ/ فاطمة هزازي<br>ملتقى التعليم التفاعلي، ملتقيات الرياضيات</p>
+    </section>
+  </main>
+
+  <div id="appView" class="app-layout hidden">
+    <aside class="sidebar">
+      <div class="app-brand">
+        <img src="assets/images/logo.jpg" alt="شعار الملتقى">
+        <div><strong>بوصلة رياضيات ١</strong><small>الرخصة المهنية</small></div>
+      </div>
+      <nav id="mainNav" class="main-nav" aria-label="التنقل الرئيسي">
+        <button class="active" data-page="home"><span>⌂</span>الرئيسية</button>
+        <button data-page="diagnostic"><span>◎</span>التشخيص</button>
+        <button data-page="practice"><span>∑</span>بنك المسائل</button>
+        <button data-page="needs"><span>✦</span>احتياجي</button>
+        <button data-page="courses"><span>▤</span>الدورات</button>
+        <button class="staff-only hidden" data-page="supervisor"><span>◫</span>نبض الملتقى</button>
+        <button class="staff-only hidden" data-page="content"><span>⚙</span>إدارة المحتوى</button>
+      </nav>
+      <div class="sidebar-note">
+        <strong>قاعدة مهمة</strong>
+        <p>الأسئلة تدريبية مستقلة، وليست أسئلة رسمية أو مسربة.</p>
+      </div>
+      <footer>أ/ فاطمة هزازي<br>ملتقى التعليم التفاعلي، ملتقيات الرياضيات</footer>
+    </aside>
+
+    <section class="workspace">
+      <header class="topbar">
+        <div><h2 id="pageTitle">الرئيسية</h2><p id="pageSubtitle">مؤشراتك الشخصية وخطوتك التالية</p></div>
+        <div class="user-area">
+          <div class="user-chip"><span id="userInitial">ف</span><div><strong id="userName">عضو</strong><small id="userRole">عضو</small></div></div>
+          <button id="refreshBtn" class="icon-button" type="button" title="تحديث البيانات">↻</button>
+          <button id="logoutBtn" class="ghost" type="button">خروج</button>
+        </div>
+      </header>
+
+      <div id="pageHome" class="page active">
+        <section class="hero">
+          <div>
+            <span id="modeBadge" class="badge">بيانات حقيقية</span>
+            <h3 id="welcomeTitle">أهلًا بك</h3>
+            <p id="welcomeText">ابدأ التشخيص ليبني النظام بصمة احتياجك ويقترح أولويات المراجعة.</p>
+            <div class="actions"><button class="primary" type="button" data-go="diagnostic">ابدأ التشخيص</button><button class="secondary" type="button" data-go="practice">حل مسألة</button></div>
+          </div>
+          <div class="readiness"><div id="readinessRing" class="ring"><strong id="readinessValue">٠٪</strong><span>الجاهزية</span></div></div>
+        </section>
+
+        <section id="memberMetrics" class="metrics-grid"></section>
+
+        <section class="content-grid two">
+          <article class="panel">
+            <div class="panel-head"><div><h3>خريطة المهارات</h3><p>آخر مستوى مسجل في كل مجال</p></div><button class="link-button" type="button" data-go="diagnostic">تحديث التشخيص</button></div>
+            <div id="skillProgress" class="progress-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h3>الخطوة المقترحة</h3><p>تتغير وفق أدائك واحتياجك</p></div></div>
+            <div id="nextAction" class="next-action"></div>
+          </article>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><div><h3>إعلانات الملتقى</h3><p>آخر التنبيهات والدورات واللقاءات</p></div></div>
+          <div id="announcementsList" class="announcement-list"></div>
+        </section>
+      </div>
+
+      <div id="pageDiagnostic" class="page">
+        <section id="diagnosticIntro" class="panel diagnostic-intro">
+          <span class="badge">١٠ أسئلة</span>
+          <h3>رادار الاحتياج المهني</h3>
+          <p>يقيس الفهم الرياضي، الاستدلال، وتحليل أخطاء المتعلمين. تحفظ النتيجة في حسابك وتظهر للمشرف بصورة إجمالية.</p>
+          <ul><li>سؤال واحد في كل خطوة</li><li>شرح بعد كل إجابة</li><li>خريطة مهارات في النهاية</li></ul>
+          <button id="startDiagnosticBtn" class="primary" type="button">ابدأ الآن</button>
+        </section>
+        <section id="diagnosticRunner" class="panel hidden">
+          <div class="quiz-head"><div><span id="diagnosticCounter" class="badge"></span><h3 id="diagnosticSkill"></h3></div><div id="diagnosticTimer" class="timer">٠٠:٠٠</div></div>
+          <div class="step-track"><i id="diagnosticTrack"></i></div>
+          <p id="diagnosticQuestion" class="question-text"></p>
+          <div id="diagnosticOptions" class="options"></div>
+          <div id="diagnosticFeedback" class="feedback hidden" aria-live="polite"></div>
+          <div class="quiz-actions"><button id="diagnosticCheckBtn" class="primary" type="button">تحقق</button><button id="diagnosticNextBtn" class="primary hidden" type="button">التالي</button></div>
+        </section>
+        <section id="diagnosticResult" class="panel hidden"></section>
+      </div>
+
+      <div id="pagePractice" class="page">
+        <section class="panel">
+          <div class="panel-head"><div><h3>بنك المسائل المهني</h3><p>اختاري المجال والمستوى، ثم حلي المسألة واكتشفي الفخ الشائع.</p></div><span id="questionCount" class="badge"></span></div>
+          <div class="filters">
+            <label>المجال<select id="practiceSkill"></select></label>
+            <label>المستوى<select id="practiceDifficulty"><option value="">كل المستويات</option><option>متوسط</option><option>متقدم</option></select></label>
+            <button id="loadQuestionsBtn" class="secondary" type="button">تحديث القائمة</button>
+          </div>
+          <div id="practiceList" class="question-grid"></div>
+        </section>
+      </div>
+
+      <div id="pageNeeds" class="page">
+        <section class="content-grid two">
+          <article class="panel">
+            <div class="panel-head"><div><h3>أرسل احتياجك</h3><p>يصل إلى لوحة المشرف ويُتابع حتى المعالجة.</p></div></div>
+            <form id="needForm" class="stack-form">
+              <label>نوع الاحتياج<select id="needType" required><option value="">اختر</option><option>شرح مبسط</option><option>تدريب على السرعة</option><option>دورة متخصصة</option><option>خطة بداية</option><option>مسألة صعبة</option><option>مادة إثرائية</option></select></label>
+              <label>المجال<select id="needSkill"><option value="">عام</option></select></label>
+              <label>التفاصيل<textarea id="needDetails" rows="5" maxlength="700" required placeholder="اكتب المهارة أو المشكلة التي تحتاج دعمًا فيها..."></textarea></label>
+              <button class="primary" type="submit">إرسال الاحتياج</button>
+            </form>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h3>طلباتي</h3><p>حالة المتابعة لدى مشرفي الملتقى</p></div></div>
+            <div id="myNeedsList" class="request-list"></div>
+          </article>
+        </section>
+      </div>
+
+      <div id="pageCourses" class="page">
+        <section class="panel">
+          <div class="panel-head"><div><h3>الدورات والمسارات</h3><p>مصادر موثقة ومسارات يضيفها مشرفو الملتقى.</p></div></div>
+          <div id="coursesGrid" class="course-grid"></div>
+        </section>
+      </div>
+
+      <div id="pageSupervisor" class="page staff-only hidden">
+        <section id="supervisorMetrics" class="metrics-grid"></section>
+        <section class="content-grid two">
+          <article class="panel">
+            <div class="panel-head"><div><h3>أكثر المهارات احتياجًا</h3><p>مبنية على أخطاء الأعضاء وطلبات الدعم</p></div></div>
+            <div id="weakSkillsTable" class="table-wrap"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h3>أنواع الاحتياج</h3><p>لتحديد الدورة أو اللقاء التالي</p></div></div>
+            <div id="needsSummary" class="progress-list"></div>
+          </article>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><div><h3>طلبات الاحتياج الحديثة</h3><p>يمكن تحديث حالة كل طلب</p></div><button id="exportNeedsBtn" class="secondary" type="button">تصدير CSV</button></div>
+          <div id="supervisorNeeds" class="table-wrap"></div>
+        </section>
+      </div>
+
+      <div id="pageContent" class="page staff-only hidden">
+        <section class="panel">
+          <div class="content-tabs">
+            <button class="active" data-content-tab="questions" type="button">الأسئلة</button>
+            <button data-content-tab="courses" type="button">الدورات</button>
+            <button data-content-tab="announcements" type="button">الإعلانات</button>
+            <button class="admin-only hidden" data-content-tab="members" type="button">الأعضاء والصلاحيات</button>
+          </div>
+          <div id="contentQuestions" class="content-tab active">
+            <div class="panel-head"><div><h3>إدارة بنك الأسئلة</h3><p>إضافة وتعديل وتفعيل الأسئلة من داخل المنصة.</p></div><button id="newQuestionBtn" class="primary" type="button">سؤال جديد</button></div>
+            <div id="adminQuestions" class="table-wrap"></div>
+          </div>
+          <div id="contentCourses" class="content-tab">
+            <div class="panel-head"><div><h3>إدارة الدورات</h3><p>روابط الدورات والقنوات والمصادر الخارجية.</p></div><button id="newCourseBtn" class="primary" type="button">دورة جديدة</button></div>
+            <div id="adminCourses" class="table-wrap"></div>
+          </div>
+          <div id="contentAnnouncements" class="content-tab">
+            <div class="panel-head"><div><h3>إدارة الإعلانات</h3><p>إعلانات تظهر للأعضاء في الصفحة الرئيسية.</p></div><button id="newAnnouncementBtn" class="primary" type="button">إعلان جديد</button></div>
+            <div id="adminAnnouncements" class="table-wrap"></div>
+          </div>
+          <div id="contentMembers" class="content-tab admin-only hidden">
+            <div class="panel-head"><div><h3>الأعضاء والصلاحيات</h3><p>ترقية مشرف أو إعادة الحساب إلى عضو. لا يمكن تعديل دور حسابك الحالي من هذه الشاشة.</p></div></div>
+            <div id="adminMembers" class="table-wrap"></div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="app-footer"><span>أ/ فاطمة هزازي</span><span>ملتقى التعليم التفاعلي، ملتقيات الرياضيات</span></footer>
+    </section>
+
+    <nav id="mobileNav" class="mobile-nav" aria-label="التنقل على الجوال"></nav>
+  </div>
+
+  <div id="modalBackdrop" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-head"><h3 id="modalTitle"></h3><button id="modalClose" class="icon-button" type="button" aria-label="إغلاق">×</button></div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <script src="js/config.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
