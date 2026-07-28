@@ -1,0 +1,53 @@
+import {skills,questions,courses,announcements} from './seed-data.js';
+
+const KEY='bousla_demo_v3';
+const clone=x=>JSON.parse(JSON.stringify(x));
+const now=()=>new Date().toISOString();
+function initialStore(){return{session:null,profiles:{},attempts:[],needs:[],diagnostics:[],questions:clone(questions),courses:clone(courses),announcements:clone(announcements)}}
+function load(){try{return Object.assign(initialStore(),JSON.parse(localStorage.getItem(KEY)||'{}'))}catch{return initialStore()}}
+function save(s){localStorage.setItem(KEY,JSON.stringify(s))}
+function uid(){return load().session?.user?.id||null}
+function profileOf(s,id){return s.profiles[id]||null}
+function skillName(id){return skills.find(s=>s.id===id)?.name||'عام'}
+function arabicDate(v){return new Date(v).toLocaleDateString('ar-SA')}
+
+export class DemoBackend{
+  constructor(){this.mode='demo';this.listeners=[]}
+  async initialize(){const s=load();return{session:s.session,profile:s.session?profileOf(s,s.session.user.id):null}}
+  onAuthStateChange(cb){this.listeners.push(cb);return()=>{this.listeners=this.listeners.filter(x=>x!==cb)}}
+  emit(event,session){this.listeners.forEach(cb=>cb(event,session))}
+  async signIn(email,password){if(!email||password.length<6)throw new Error('أدخلي بريدًا وكلمة مرور من ٦ أحرف على الأقل.');const s=load();let id=email.toLowerCase().includes('supervisor')?'demo-supervisor':email.toLowerCase().includes('admin')?'demo-admin':'demo-member';let role=id==='demo-member'?'member':id==='demo-supervisor'?'supervisor':'admin';if(!s.profiles[id])s.profiles[id]={id,full_name:role==='member'?'عضو تجريبي':'مشرف تجريبي',email,role,created_at:now()};s.session={user:{id,email}};save(s);this.emit('SIGNED_IN',s.session);return{session:s.session,profile:s.profiles[id]}}
+  async signUp(name,email,password){if(password.length<8)throw new Error('كلمة المرور يجب ألا تقل عن ٨ أحرف.');const s=load();const id='demo-'+Date.now();s.profiles[id]={id,full_name:name,email,role:'member',created_at:now()};s.session={user:{id,email}};save(s);this.emit('SIGNED_IN',s.session);return{session:s.session,profile:s.profiles[id],message:'تم إنشاء الحساب التجريبي.'}}
+  async resetPassword(){return{message:'في الوضع التجريبي لا يُرسل بريد. بعد ربط Supabase ستعمل استعادة كلمة المرور.'}}
+  async updatePassword(){return{message:'تم تحديث كلمة المرور التجريبية.'}}
+  async signOut(){const s=load();s.session=null;save(s);this.emit('SIGNED_OUT',null)}
+  async getProfile(){const s=load();return profileOf(s,uid())}
+  async getSkills(){return clone(skills)}
+  async getAnnouncements(){return clone(load().announcements.filter(a=>a.active).sort((a,b)=>b.created_at.localeCompare(a.created_at)))}
+  async getMyDashboard(){const s=load(),id=uid();const attempts=s.attempts.filter(a=>a.user_id===id);const last=[...s.diagnostics].reverse().find(d=>d.user_id===id&&d.completed_at);const needsOpen=s.needs.filter(n=>n.user_id===id&&n.status!=='resolved').length;const skillStats=last?.skill_stats||skills.map(x=>({skill_id:x.id,skill_name:x.name,score:0,total:0,correct:0}));const weakest=[...skillStats].sort((a,b)=>a.score-b.score)[0];return{readiness:last?.readiness||0,practice_count:attempts.length,practice_accuracy:attempts.length?Math.round(attempts.filter(a=>a.is_correct).length*100/attempts.length):0,open_needs:needsOpen,weakest_skill:weakest?.skill_name||'لم يحدد',skill_stats:skillStats,last_diagnostic_at:last?.completed_at||null}}
+  async startDiagnostic(){const s=load(),id=uid();if(!id)throw new Error('يلزم تسجيل الدخول.');const selected=s.questions.filter(q=>q.active!==false&&q.is_diagnostic).slice(0,10);const session={id:'ds-'+Date.now(),user_id:id,started_at:now(),completed_at:null,question_ids:selected.map(q=>q.id),answers:[]};s.diagnostics.push(session);save(s);return{session_id:session.id,questions:selected.map(q=>({id:q.id,skill_id:q.skill_id,skill_name:skillName(q.skill_id),difficulty:q.difficulty,title:q.title,question_text:q.question_text,options:q.options}))}}
+  async submitDiagnosticAnswer(sessionId,questionId,selectedIndex,responseSeconds){const s=load();const session=s.diagnostics.find(d=>d.id===sessionId&&d.user_id===uid());if(!session)throw new Error('جلسة التشخيص غير موجودة.');const q=s.questions.find(x=>x.id===questionId);if(!q)throw new Error('السؤال غير موجود.');const answer={question_id:questionId,selected_index:selectedIndex,is_correct:selectedIndex===q.correct_index,response_seconds:responseSeconds};const old=session.answers.findIndex(a=>a.question_id===questionId);old>=0?session.answers.splice(old,1,answer):session.answers.push(answer);save(s);return{is_correct:answer.is_correct,correct_index:q.correct_index,explanation:q.explanation,trap:q.trap,quick_method:q.quick_method}}
+  async finishDiagnostic(sessionId){const s=load();const session=s.diagnostics.find(d=>d.id===sessionId&&d.user_id===uid());if(!session)throw new Error('الجلسة غير موجودة.');const grouped={};for(const qid of session.question_ids){const q=s.questions.find(x=>x.id===qid),a=session.answers.find(x=>x.question_id===qid);if(!q)continue;grouped[q.skill_id]??={skill_id:q.skill_id,skill_name:skillName(q.skill_id),correct:0,total:0};grouped[q.skill_id].total++;if(a?.is_correct)grouped[q.skill_id].correct++}const stats=Object.values(grouped).map(x=>({...x,score:Math.round(x.correct*100/x.total)}));const correct=session.answers.filter(a=>a.is_correct).length,total=session.question_ids.length;session.completed_at=now();session.correct=correct;session.total=total;session.readiness=Math.round(correct*100/total);session.skill_stats=stats;save(s);return{readiness:session.readiness,correct,total,skill_stats:stats}}
+  async getPracticeQuestions(skillId='',difficulty=''){return clone(load().questions.filter(q=>q.active!==false&&!q.is_diagnostic&&(!skillId||q.skill_id===skillId)&&(!difficulty||q.difficulty===difficulty)).map(q=>({id:q.id,skill_id:q.skill_id,skill_name:skillName(q.skill_id),difficulty:q.difficulty,title:q.title,question_text:q.question_text,options:q.options,priority:q.priority})))}
+  async submitPracticeAnswer(questionId,selectedIndex,responseSeconds){const s=load(),q=s.questions.find(x=>x.id===questionId);if(!q)throw new Error('السؤال غير موجود.');const attempt={id:'pa-'+Date.now(),user_id:uid(),question_id:questionId,skill_id:q.skill_id,selected_index:selectedIndex,is_correct:selectedIndex===q.correct_index,response_seconds:responseSeconds,created_at:now()};s.attempts.push(attempt);save(s);return{is_correct:attempt.is_correct,correct_index:q.correct_index,explanation:q.explanation,trap:q.trap,quick_method:q.quick_method}}
+  async createNeed(payload){const s=load();const row={id:'n-'+Date.now(),user_id:uid(),need_type:payload.need_type,skill_id:payload.skill_id||null,skill_name:skillName(payload.skill_id),details:payload.details,status:'open',created_at:now(),updated_at:now()};s.needs.unshift(row);save(s);return clone(row)}
+  async getMyNeeds(){return clone(load().needs.filter(n=>n.user_id===uid()).sort((a,b)=>b.created_at.localeCompare(a.created_at)))}
+  async getCourses(){return clone(load().courses.filter(c=>c.active!==false))}
+  async getSupervisorDashboard(){const s=load();const baseline=37;const allAttempts=s.attempts;const skillMap=Object.fromEntries(skills.map(k=>[k.id,{skill_id:k.id,skill_name:k.name,total:0,wrong:0}]));for(const a of allAttempts){skillMap[a.skill_id].total++;if(!a.is_correct)skillMap[a.skill_id].wrong++}for(const d of s.diagnostics)for(const a of d.answers||[]){const q=s.questions.find(x=>x.id===a.question_id);if(q){skillMap[q.skill_id].total++;if(!a.is_correct)skillMap[q.skill_id].wrong++}}const weak=Object.values(skillMap).map(x=>({...x,error_rate:x.total?Math.round(x.wrong*100/x.total):Math.max(18,72-skills.findIndex(k=>k.id===x.skill_id)*7)})).sort((a,b)=>b.error_rate-a.error_rate);const needCounts={};for(const n of s.needs)needCounts[n.need_type]=(needCounts[n.need_type]||0)+1;if(!Object.keys(needCounts).length)Object.assign(needCounts,{'شرح مبسط':14,'تدريب على السرعة':11,'دورة متخصصة':8,'خطة بداية':4});return{members_count:Object.keys(s.profiles).length+baseline,open_needs:s.needs.filter(n=>n.status!=='resolved').length+12,attempts_7d:allAttempts.length+286,average_readiness:68,weak_skills:weak,needs_summary:Object.entries(needCounts).map(([need_type,count])=>({need_type,count})).sort((a,b)=>b.count-a.count)}}
+  async getAllNeeds(){const s=load();const rows=s.needs.map(n=>({...n,requester:profileOf(s,n.user_id)?.full_name||'عضو'}));if(!rows.length)rows.push({id:'sample1',requester:'عضو مجهول',need_type:'شرح مبسط',skill_name:'الهندسة',details:'أحتاج شرح عامل القياس بصورة بصرية.',status:'open',created_at:now()});return clone(rows)}
+  async updateNeedStatus(id,status){const s=load(),n=s.needs.find(x=>x.id===id);if(n){n.status=status;n.updated_at=now();save(s)}return n||{id,status}}
+  async adminListQuestions(){return clone(load().questions)}
+  async saveQuestion(payload,id=null){const s=load();if(id){const i=s.questions.findIndex(q=>q.id===id);s.questions[i]={...s.questions[i],...payload,updated_at:now()}}else{s.questions.unshift({...payload,id:'q-'+Date.now(),active:true,created_at:now()})}save(s);return true}
+  async toggleQuestion(id,active){const s=load(),q=s.questions.find(x=>x.id===id);if(q)q.active=active;save(s)}
+  async adminListCourses(){return clone(load().courses)}
+  async saveCourse(payload,id=null){const s=load();if(id){const i=s.courses.findIndex(c=>c.id===id);s.courses[i]={...s.courses[i],...payload}}else{s.courses.unshift({...payload,id:'c-'+Date.now(),active:true})}save(s);return true}
+  async toggleCourse(id,active){const s=load(),c=s.courses.find(x=>x.id===id);if(c)c.active=active;save(s)}
+  async adminListAnnouncements(){return clone(load().announcements)}
+  async adminListProfiles(){return clone(Object.values(load().profiles).sort((a,b)=>(a.full_name||'').localeCompare(b.full_name||'')))}
+  async updateProfileRole(id,role){const s=load(),p=s.profiles[id];if(p){p.role=role;save(s)}return p}
+  async saveAnnouncement(payload,id=null){const s=load();if(id){const i=s.announcements.findIndex(a=>a.id===id);s.announcements[i]={...s.announcements[i],...payload}}else{s.announcements.unshift({...payload,id:'a-'+Date.now(),active:true,created_at:now()})}save(s);return true}
+  async toggleAnnouncement(id,active){const s=load(),a=s.announcements.find(x=>x.id===id);if(a)a.active=active;save(s)}
+  subscribeToLiveChanges(){return()=>{}}
+  async touchProfile(){return true}
+  formatDate=arabicDate
+}
