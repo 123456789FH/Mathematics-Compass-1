@@ -24,24 +24,42 @@ function percentColor(p){return p<50?'var(--red)':p<70?'var(--orange)':'var(--gr
 
 async function createBackend(){
   const c=window.BOUSLA_CONFIG||{};
-  const configured=!c.DEMO_MODE&&/^https:\/\/.+\.supabase\.co$/.test(c.SUPABASE_URL||'')&&(c.SUPABASE_ANON_KEY||'').length>30;
-  if(configured){
-    try{const {SupabaseBackend}=await import('./supabase-backend.js');state.mode='live';setBanner('متصلة بقاعدة البيانات — بيانات الأعضاء محفوظة ومشتركة.','online');return new SupabaseBackend(c)}
-    catch(error){console.error(error);setBanner('تعذر تحميل الاتصال بقاعدة البيانات. فُتح الوضع التجريبي مؤقتًا.','error')}
+  const configured=!c.DEMO_MODE&&/^https:\/\/.+\.supabase\.co$/.test(c.SUPABASE_URL||'')&&(c.SUPABASE_ANON_KEY||'').startsWith('sb_publishable_');
+  if(c.DEMO_MODE){
+    state.mode='demo';
+    setBanner('الوضع التجريبي يعمل على هذا الجهاز فقط.');
+    $('#demoAccounts')?.classList.remove('hidden');
+    return new DemoBackend();
   }
-  state.mode='demo';setBanner('الوضع التجريبي: الواجهة تعمل محليًا. لعملها بين جميع أعضاء الملتقى اربطي Supabase وفق دليل التشغيل.');$('#demoAccounts').classList.remove('hidden');return new DemoBackend();
+  if(!configured)throw new Error('بيانات ربط Supabase غير مكتملة في js/config.js.');
+  const {SupabaseBackend}=await import('./supabase-backend.js');
+  state.mode='live';
+  setBanner('متصلة بقاعدة البيانات — بيانات الأعضاء محفوظة ومشتركة.','online');
+  return new SupabaseBackend(c);
 }
 
+function authSubmitButtons(){return $$('#loginForm button[type="submit"], #signupForm button[type="submit"]')}
+function setAuthReady(ready){authSubmitButtons().forEach(button=>{button.disabled=!ready;button.setAttribute('aria-disabled',String(!ready))})}
+
 async function init(){
-  // لا نربط أزرار الدخول قبل اكتمال إنشاء موصل Supabase؛
-  // فهذا يمنع محاولة التسجيل أثناء بقاء state.backend بقيمة null.
-  setBanner('جارٍ الاتصال بقاعدة البيانات...','');
-  state.backend=await createBackend();
   bindStaticEvents();
-  state.backend.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_OUT'){showAuth();return}if(session&&!state.session){await enterApp(session)}});
-  try{const {session,profile}=await state.backend.initialize();if(session){state.profile=profile;await enterApp(session)}else showAuth()}
-  catch(error){console.error(error);toast(error.message,'error');showAuth()}
-  if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
+  setAuthReady(false);
+  setBanner('جارٍ الاتصال بقاعدة البيانات...','');
+  try{
+    state.backend=await createBackend();
+    state.backend.onAuthStateChange(async(event,session)=>{if(event==='SIGNED_OUT'){showAuth();return}if(session&&!state.session){await enterApp(session)}});
+    const {session,profile}=await state.backend.initialize();
+    if(session){state.profile=profile;await enterApp(session)}else showAuth();
+    setAuthReady(true);
+  }catch(error){
+    console.error(error);
+    state.backend=null;
+    setBanner(`تعذر الاتصال بقاعدة البيانات: ${translateError(error.message)}`,'error');
+    toast(translateError(error.message),'error');
+    showAuth();
+    setAuthReady(true);
+  }
+  if('serviceWorker'in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./service-worker.js').catch(error=>console.warn('Service worker:',error));
 }
 
 function bindStaticEvents(){
@@ -76,9 +94,34 @@ function bindStaticEvents(){
   $('#adminMembers').addEventListener('change',e=>{if(e.target.matches('[data-profile-role]'))updateMemberRole(e.target.dataset.profileRole,e.target.value)});
 }
 function switchAuth(which){const login=which==='login';$('#loginTab').classList.toggle('active',login);$('#signupTab').classList.toggle('active',!login);$('#loginTab').setAttribute('aria-selected',login);$('#signupTab').setAttribute('aria-selected',!login);$('#loginForm').classList.toggle('hidden',!login);$('#signupForm').classList.toggle('hidden',login)}
-async function handleLogin(e){e.preventDefault();const b=e.submitter;setBusy(b,true,'جارٍ الدخول...');try{const result=await state.backend.signIn($('#loginName').value.trim(),$('#loginMemberNumber').value.trim());state.profile=result.profile;if(!state.session)await enterApp(result.session)}catch(error){toast(translateError(error.message),'error')}finally{setBusy(b,false)}}
-async function handleSignup(e){e.preventDefault();const b=e.submitter;setBusy(b,true,'جارٍ الإنشاء...');try{const result=await state.backend.signUp($('#signupName').value.trim(),$('#signupMemberNumber').value.trim());toast(result.message,'success');if(result.session){state.profile=result.profile;if(!state.session)await enterApp(result.session)}else switchAuth('login')}catch(error){toast(translateError(error.message),'error')}finally{setBusy(b,false)}}
-function translateError(m){const s=String(m);if(s.includes('Invalid login')||s.includes('Invalid login credentials'))return'الاسم أو رقم الدخول غير صحيح.';if(s.includes('already registered')||s.includes('User already registered'))return'رقم الدخول مستخدم مسبقًا؛ اختاري رقمًا آخر.';if(s.includes('membership migration'))return'يلزم تشغيل ملف تحديث أرقام العضوية في Supabase أولًا.';if(s.includes('Database error saving new user'))return'تعذر إنشاء الحساب. تأكدي من تشغيل ملف التحديث 04 في Supabase.';return s}
+async function handleLogin(e){
+  e.preventDefault();
+  const b=e.submitter||$('#loginForm button[type="submit"]');
+  if(!state.backend){toast('الاتصال بقاعدة البيانات غير جاهز. حدّثي الصفحة بعد التأكد من ملف config.js.','error');return}
+  setBusy(b,true,'جارٍ الدخول...');
+  try{const result=await state.backend.signIn($('#loginName').value.trim(),$('#loginMemberNumber').value.trim());state.profile=result.profile;if(!state.session)await enterApp(result.session)}
+  catch(error){toast(translateError(error.message),'error')}
+  finally{setBusy(b,false)}
+}
+async function handleSignup(e){
+  e.preventDefault();
+  const b=e.submitter||$('#signupForm button[type="submit"]');
+  if(!state.backend){toast('الاتصال بقاعدة البيانات غير جاهز. حدّثي الصفحة بعد التأكد من ملف config.js.','error');return}
+  setBusy(b,true,'جارٍ الإنشاء...');
+  try{const result=await state.backend.signUp($('#signupName').value.trim(),$('#signupMemberNumber').value.trim());toast(result.message,'success');if(result.session){state.profile=result.profile;if(!state.session)await enterApp(result.session)}else switchAuth('login')}
+  catch(error){toast(translateError(error.message),'error')}
+  finally{setBusy(b,false)}
+}
+function translateError(m){
+  const s=String(m||'خطأ غير معروف');
+  if(s.includes('Failed to fetch')||s.includes('NetworkError')||s.includes('انتهت مهلة'))return'تعذر الوصول إلى Supabase. تحققي من الإنترنت ثم أعيدي المحاولة.';
+  if(s.includes('Invalid API key')||s.includes('No API key'))return'المفتاح العام في config.js غير صحيح أو غير مكتمل.';
+  if(s.includes('Invalid login')||s.includes('Invalid login credentials'))return'الاسم أو رقم الدخول غير صحيح.';
+  if(s.includes('already registered')||s.includes('User already registered')||s.includes('already been registered'))return'رقم الدخول مستخدم مسبقًا؛ اختاري رقمًا آخر.';
+  if(s.includes('membership migration'))return'يلزم تشغيل ملف تحديث أرقام العضوية 04 في Supabase.';
+  if(s.includes('Database error saving new user'))return'تعذر إنشاء الحساب داخل قاعدة البيانات. راجعي تشغيل ملف 04.';
+  return s;
+}
 function showAuth(){state.session=null;state.profile=null;state.unsubscribe?.();state.unsubscribe=null;$('#appView').classList.add('hidden');$('#authView').classList.remove('hidden')}
 
 async function enterApp(session){
