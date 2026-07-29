@@ -1,4 +1,4 @@
-const CACHE='bousla-v8-buttons-fixed';
+const CACHE='bousla-v9-font-clean-recovery';
 const STATIC_SHELL=[
   './',
   './index.html',
