@@ -205,6 +205,7 @@
             <button data-content-tab="courses" type="button">الدورات</button>
             <button data-content-tab="announcements" type="button">الإعلانات</button>
             <button class="admin-only hidden" data-content-tab="members" type="button">الأعضاء والصلاحيات</button>
+            <button class="admin-only hidden" data-content-tab="recoveries" type="button">طلبات استعادة الدخول</button>
           </div>
           <div id="contentQuestions" class="content-tab active">
             <div class="panel-head"><div><h3>إدارة بنك الأسئلة</h3><p>إضافة وتعديل وتفعيل الأسئلة من داخل المنصة.</p></div><button id="newQuestionBtn" class="primary" type="button">سؤال جديد</button></div>
@@ -221,6 +222,13 @@
           <div id="contentMembers" class="content-tab admin-only hidden">
             <div class="panel-head"><div><h3>الأعضاء والصلاحيات</h3><p>ترقية مشرف أو إعادة الحساب إلى عضو. لا يمكن تعديل دور حسابك الحالي من هذه الشاشة.</p></div></div>
             <div id="adminMembers" class="table-wrap"></div>
+          </div>
+          <div id="contentRecoveries" class="content-tab admin-only hidden">
+            <div class="panel-head">
+              <div><h3>طلبات استعادة رقم الدخول</h3><p>راجعي هوية العضو خارج المنصة أولًا، ثم اختاري حسابه ووافقي على الطلب. يحصل العضو على الرقم داخل نافذة الاستعادة باستخدام رمز المتابعة.</p></div>
+              <button id="refreshRecoveriesBtn" class="secondary" type="button">تحديث الطلبات</button>
+            </div>
+            <div id="adminRecoveries" class="table-wrap"></div>
           </div>
         </section>
       </div>
