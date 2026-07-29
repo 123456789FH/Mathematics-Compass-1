@@ -8,6 +8,9 @@
   <title>بوصلة رياضيات ١</title>
   <link rel="icon" href="assets/images/logo.jpg">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
@@ -38,6 +41,7 @@
           <label>رقم الدخول الخاص<input id="loginMemberNumber" type="text" inputmode="numeric" autocomplete="username" required minlength="5" maxlength="12" placeholder="مثال: ١٢٣٤٥"></label>
           <small class="auth-help">رقم الدخول خاص بك، ويجب ألا يعرفه غيرك.</small>
           <button class="primary wide" type="submit">دخول</button>
+          <button id="forgotAccessBtn" class="auth-recovery-link" type="button">نسيت رقم الدخول؟</button>
           <div id="demoAccounts" class="demo-accounts hidden">
             <p><strong>معاينة سريعة:</strong></p>
             <button type="button" data-demo-login="member">دخول كعضو تجريبي</button>
