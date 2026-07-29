@@ -13,7 +13,11 @@ function toast(message,type='info'){
   const el=$('#toast');el.textContent=message;el.style.background=type==='error'?'#8b2731':type==='success'?'#235c36':'#082a50';el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),3200);
 }
 function setBusy(button,busy,label='جارٍ التنفيذ...'){if(!button)return;if(busy){button.dataset.old=button.textContent;button.disabled=true;button.textContent=label}else{button.disabled=false;button.textContent=button.dataset.old||button.textContent}}
-function setBanner(message,kind=''){const el=$('#connectionBanner');el.textContent=message;el.className=`connection-banner ${kind}`;el.classList.remove('hidden')}
+function setBanner(message,kind=''){
+  const el=$('#connectionBanner');
+  if(kind==='online'){el.textContent='';el.className='connection-banner hidden';return}
+  el.textContent=message;el.className=`connection-banner ${kind}`;el.classList.remove('hidden')
+}
 function closeModal(){$('#modalBackdrop').classList.add('hidden');$('#modalBody').innerHTML=''}
 function openModal(title,html){$('#modalTitle').textContent=title;$('#modalBody').innerHTML=html;$('#modalBackdrop').classList.remove('hidden')}
 function isStaff(){return ['supervisor','admin'].includes(state.profile?.role)}
@@ -66,6 +70,7 @@ function bindStaticEvents(){
   $('#signupTab').addEventListener('click',()=>switchAuth('signup'));
   $('#loginForm').addEventListener('submit',handleLogin);
   $('#signupForm').addEventListener('submit',handleSignup);
+  $('#forgotAccessBtn')?.addEventListener('click',showAccessRecovery);
   $('#demoAccounts').addEventListener('click',e=>{const role=e.target.dataset.demoLogin;if(!role)return;$('#loginName').value=role==='member'?'عضو تجريبي':'مشرف تجريبي';$('#loginMemberNumber').value=role==='member'?'11111':'22222';$('#loginForm').requestSubmit()});
   $('#logoutBtn').addEventListener('click',()=>state.backend.signOut().catch(e=>toast(e.message,'error')));
   $('#refreshBtn').addEventListener('click',()=>refreshPage(true));
@@ -91,6 +96,24 @@ function bindStaticEvents(){
   $('#adminCourses').addEventListener('click',adminCourseAction);
   $('#adminAnnouncements').addEventListener('click',adminAnnouncementAction);
   $('#adminMembers').addEventListener('change',e=>{if(e.target.matches('[data-profile-role]'))updateMemberRole(e.target.dataset.profileRole,e.target.value)});
+}
+function showAccessRecovery(){
+  openModal('استعادة رقم الدخول',`
+    <section class="recovery-info">
+      <div class="recovery-icon" aria-hidden="true">⌁</div>
+      <div>
+        <h3>هل نسيت رقم الدخول؟</h3>
+        <p>لا تجمع المنصة بريدًا إلكترونيًا أو رقم جوال؛ لذلك لا يمكن إرسال رقم الدخول آليًا.</p>
+      </div>
+      <ol class="recovery-steps">
+        <li>تواصل مع مدير أو مشرف الملتقى.</li>
+        <li>اذكر اسمك الكامل كما سُجّل في المنصة.</li>
+        <li>بعد التحقق من هويتك، يستطيع المدير العثور على رقمك من: <strong>إدارة المحتوى ← الأعضاء</strong>.</li>
+      </ol>
+      <div class="recovery-note">حفاظًا على حسابك، لا يُكشف رقم الدخول لأي شخص قبل التحقق من صاحب الحساب.</div>
+      <div class="modal-actions"><button id="closeRecoveryBtn" class="primary" type="button">حسنًا</button></div>
+    </section>`);
+  $('#closeRecoveryBtn').onclick=closeModal;
 }
 function switchAuth(which){const login=which==='login';$('#loginTab').classList.toggle('active',login);$('#signupTab').classList.toggle('active',!login);$('#loginTab').setAttribute('aria-selected',login);$('#signupTab').setAttribute('aria-selected',!login);$('#loginForm').classList.toggle('hidden',!login);$('#signupForm').classList.toggle('hidden',login)}
 async function handleLogin(e){
