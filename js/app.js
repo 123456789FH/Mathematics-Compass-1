@@ -1,5 +1,3 @@
-import {DemoBackend} from './demo-backend.js';
-
 const $=(s,r=document)=>r.querySelector(s);
 const $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const arDigits=v=>String(v??'').replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
@@ -26,6 +24,7 @@ async function createBackend(){
   const c=window.BOUSLA_CONFIG||{};
   const configured=!c.DEMO_MODE&&/^https:\/\/.+\.supabase\.co$/.test(c.SUPABASE_URL||'')&&(c.SUPABASE_ANON_KEY||'').startsWith('sb_publishable_');
   if(c.DEMO_MODE){
+    const {DemoBackend}=await import('./demo-backend.js');
     state.mode='demo';
     setBanner('الوضع التجريبي يعمل على هذا الجهاز فقط.');
     $('#demoAccounts')?.classList.remove('hidden');
