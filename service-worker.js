@@ -1,4 +1,4 @@
-const CACHE='bousla-v9-font-clean-recovery';
+const CACHE='bousla-v10-real-access-recovery';
 const STATIC_SHELL=[
   './',
   './index.html',
