@@ -121,6 +121,7 @@ export class SupabaseBackend{
     }catch(error){if(retry&&error.status===401){await this.refreshSession();return this.rest(path,{method,body,headers,retry:false})}throw error}
   }
   async rpc(name,args={}){return this.rest(`rpc/${name}`,{method:'POST',body:args})}
+  async publicRpc(name,args={}){return this.fetchJson(`${this.url}/rest/v1/rpc/${name}`,{method:'POST',headers:this.authHeaders(false),body:JSON.stringify(args)})}
   first(data){return Array.isArray(data)?data[0]||null:data}
 
   async getProfile(){
@@ -138,6 +139,8 @@ export class SupabaseBackend{
   async createNeed(payload){const user=await this.getAuthUser();const rows=await this.rest('need_requests?select=*,skills(name)',{method:'POST',headers:{Prefer:'return=representation'},body:{user_id:user.id,need_type:payload.need_type,skill_id:payload.skill_id||null,details:payload.details}});const row=this.first(rows);return{...row,skill_name:row?.skills?.name||'عام'}}
   async getMyNeeds(){const rows=await this.rest('need_requests?select=*,skills(name)&order=created_at.desc');return(rows||[]).map(r=>({...r,skill_name:r.skills?.name||'عام'}))}
   async getCourses(){return this.rest('courses?select=*,skills(name)&active=eq.true&order=featured.desc,created_at.desc')}
+  async createAccessRecovery(fullName,token){return this.publicRpc('create_access_recovery',{p_full_name:fullName,p_token:token})}
+  async getAccessRecoveryResult(token){return this.publicRpc('get_access_recovery_result',{p_token:token})}
   async getSupervisorDashboard(){return this.rpc('get_supervisor_dashboard')}
   async getAllNeeds(){const rows=await this.rest('need_requests?select=*,skills(name),profiles(full_name)&order=created_at.desc&limit=500');return(rows||[]).map(r=>({...r,skill_name:r.skills?.name||'عام',requester:r.profiles?.full_name||'عضو'}))}
   async updateNeedStatus(id,status){return this.first(await this.rest(`need_requests?id=eq.${encodeURIComponent(id)}&select=*`,{method:'PATCH',headers:{Prefer:'return=representation'},body:{status,updated_at:new Date().toISOString()}}))}
@@ -149,6 +152,8 @@ export class SupabaseBackend{
   async toggleCourse(id,active){return this.rest(`courses?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:{active}})}
   async adminListAnnouncements(){return this.rest('announcements?select=*&order=created_at.desc')}
   async adminListProfiles(){return this.rest('profiles?select=id,full_name,membership_number,role,active,last_seen_at,created_at&order=created_at.desc')}
+  async adminListAccessRecoveries(){return this.rpc('admin_list_access_recovery')}
+  async resolveAccessRecovery(requestId,profileId,action,note=''){return this.rpc('resolve_access_recovery',{p_request_id:requestId,p_profile_id:profileId||null,p_action:action,p_note:note||null})}
   async updateProfileRole(id,role){return this.first(await this.rest(`profiles?id=eq.${encodeURIComponent(id)}&select=*`,{method:'PATCH',headers:{Prefer:'return=representation'},body:{role}}))}
   async saveAnnouncement(payload,id=null){const row={...payload,active:payload.active!==false};if(id)return this.rest(`announcements?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:row});return this.rest('announcements',{method:'POST',body:row})}
   async toggleAnnouncement(id,active){return this.rest(`announcements?id=eq.${encodeURIComponent(id)}`,{method:'PATCH',body:{active}})}

@@ -4,10 +4,11 @@ const arDigits=v=>String(v??'').replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]);
 const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const formatDate=v=>v?new Date(v).toLocaleDateString('ar-SA',{year:'numeric',month:'short',day:'numeric'}):'—';
 const statusText={open:'جديد',in_progress:'قيد المعالجة',resolved:'تمت المعالجة'};
+const recoveryStatusText={open:'بانتظار المراجعة',approved:'تمت الموافقة',rejected:'مرفوض',expired:'منتهي الصلاحية',invalid:'الرمز غير صحيح'};
 const roleText={member:'عضو',supervisor:'مشرف',admin:'مدير المنصة'};
 const titles={home:['الرئيسية','مؤشراتك الشخصية وخطوتك التالية'],diagnostic:['التشخيص الذكي','بناء بصمة الاحتياج الرياضي'],practice:['بنك المسائل','تدريب مهني مع تفسير وفخ شائع'],needs:['احتياجي','إرسال الاحتياج ومتابعة معالجته'],courses:['الدورات والمسارات','مصادر مقترحة وفق الاحتياج'],supervisor:['نبض الملتقى','مؤشرات حقيقية لدعم قرار المشرف'],content:['إدارة المحتوى','الأسئلة والدورات والإعلانات']};
 
-const state={backend:null,mode:'demo',session:null,profile:null,skills:[],page:'home',dashboard:null,diagnostic:null,practice:[],allNeeds:[],adminQuestions:[],adminCourses:[],adminAnnouncements:[],adminMembers:[],unsubscribe:null};
+const state={backend:null,mode:'demo',session:null,profile:null,skills:[],page:'home',dashboard:null,diagnostic:null,practice:[],allNeeds:[],adminQuestions:[],adminCourses:[],adminAnnouncements:[],adminMembers:[],adminRecoveries:[],unsubscribe:null};
 
 function toast(message,type='info'){
   const el=$('#toast');el.textContent=message;el.style.background=type==='error'?'#8b2731':type==='success'?'#235c36':'#082a50';el.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('show'),3200);
@@ -96,24 +97,128 @@ function bindStaticEvents(){
   $('#adminCourses').addEventListener('click',adminCourseAction);
   $('#adminAnnouncements').addEventListener('click',adminAnnouncementAction);
   $('#adminMembers').addEventListener('change',e=>{if(e.target.matches('[data-profile-role]'))updateMemberRole(e.target.dataset.profileRole,e.target.value)});
+  $('#refreshRecoveriesBtn')?.addEventListener('click',()=>loadAdminRecoveries());
+  $('#adminRecoveries')?.addEventListener('click',adminRecoveryAction);
+}
+const RECOVERY_STORAGE_KEY='bousla-access-recovery-token-v1';
+function generateRecoveryToken(){
+  const bytes=new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+}
+async function copyText(value){
+  try{await navigator.clipboard.writeText(value);toast('تم النسخ.','success')}
+  catch{
+    const area=document.createElement('textarea');area.value=value;area.style.position='fixed';area.style.opacity='0';document.body.appendChild(area);area.select();document.execCommand('copy');area.remove();toast('تم النسخ.','success')
+  }
+}
+function recoveryDate(value){return value?new Date(value).toLocaleString('ar-SA',{dateStyle:'medium',timeStyle:'short'}):'—'}
+function switchRecoveryPanel(mode){
+  const request=mode==='request';
+  $('#recoveryRequestTab')?.classList.toggle('active',request);
+  $('#recoveryCheckTab')?.classList.toggle('active',!request);
+  $('#recoveryRequestPanel')?.classList.toggle('hidden',!request);
+  $('#recoveryCheckPanel')?.classList.toggle('hidden',request);
 }
 function showAccessRecovery(){
+  const savedToken=localStorage.getItem(RECOVERY_STORAGE_KEY)||'';
+  const savedName=$('#loginName')?.value?.trim()||localStorage.getItem('bousla-recovery-name')||'';
   openModal('استعادة رقم الدخول',`
     <section class="recovery-info">
-      <div class="recovery-icon" aria-hidden="true">⌁</div>
-      <div>
-        <h3>هل نسيت رقم الدخول؟</h3>
-        <p>لا تجمع المنصة بريدًا إلكترونيًا أو رقم جوال؛ لذلك لا يمكن إرسال رقم الدخول آليًا.</p>
+      <div class="recovery-intro">
+        <div class="recovery-icon" aria-hidden="true">↺</div>
+        <div><h3>استعادة رقم الدخول</h3><p>أرسلي طلبًا من داخل المنصة، واحفظي رمز المتابعة. بعد أن يتحقق مدير المنصة من هويتك ويوافق على الطلب، سيظهر رقم الدخول هنا.</p></div>
       </div>
-      <ol class="recovery-steps">
-        <li>تواصل مع مدير أو مشرف الملتقى.</li>
-        <li>اذكر اسمك الكامل كما سُجّل في المنصة.</li>
-        <li>بعد التحقق من هويتك، يستطيع المدير العثور على رقمك من: <strong>إدارة المحتوى ← الأعضاء</strong>.</li>
-      </ol>
-      <div class="recovery-note">حفاظًا على حسابك، لا يُكشف رقم الدخول لأي شخص قبل التحقق من صاحب الحساب.</div>
-      <div class="modal-actions"><button id="closeRecoveryBtn" class="primary" type="button">حسنًا</button></div>
+      <div class="recovery-tabs">
+        <button id="recoveryRequestTab" class="active" type="button">طلب جديد</button>
+        <button id="recoveryCheckTab" type="button">متابعة طلب</button>
+      </div>
+      <div id="recoveryRequestPanel">
+        <form id="recoveryRequestForm" class="recovery-form">
+          <label>الاسم الكامل المسجل<input id="recoveryFullName" type="text" minlength="3" maxlength="80" required value="${esc(savedName)}" placeholder="اكتب الاسم كما سُجّل أول مرة"></label>
+          <button class="primary wide" type="submit">إرسال طلب الاستعادة</button>
+        </form>
+        <div id="recoveryRequestResult"></div>
+      </div>
+      <div id="recoveryCheckPanel" class="hidden">
+        <form id="recoveryCheckForm" class="recovery-form">
+          <label>رمز المتابعة<input id="recoveryTokenInput" type="text" dir="ltr" autocomplete="off" required value="${esc(savedToken)}" placeholder="الصق رمز المتابعة هنا"></label>
+          <button class="primary wide" type="submit">التحقق من حالة الطلب</button>
+        </form>
+        <div id="recoveryCheckResult"></div>
+      </div>
+      <div class="recovery-note">لا يوافق المدير على الطلب إلا بعد التحقق من صاحب الحساب. رمز المتابعة صالح لمدة ٤٨ ساعة.</div>
     </section>`);
-  $('#closeRecoveryBtn').onclick=closeModal;
+
+  $('#recoveryRequestTab').onclick=()=>switchRecoveryPanel('request');
+  $('#recoveryCheckTab').onclick=()=>switchRecoveryPanel('check');
+  $('#recoveryRequestForm').onsubmit=submitAccessRecovery;
+  $('#recoveryCheckForm').onsubmit=e=>{e.preventDefault();checkAccessRecovery($('#recoveryTokenInput').value.trim(),e.submitter)};
+  if(savedToken)switchRecoveryPanel('check');
+}
+async function submitAccessRecovery(e){
+  e.preventDefault();
+  const button=e.submitter;
+  const name=$('#recoveryFullName').value.trim();
+  if(!state.backend?.createAccessRecovery){toast('حدّثي ملفات المنصة وشغّلي ملف الاستعادة في Supabase.','error');return}
+  const token=generateRecoveryToken();
+  setBusy(button,true,'جارٍ إرسال الطلب...');
+  try{
+    const result=await state.backend.createAccessRecovery(name,token);
+    localStorage.setItem(RECOVERY_STORAGE_KEY,token);
+    localStorage.setItem('bousla-recovery-name',name);
+    const requestMessage=`طلب استعادة رقم الدخول لمنصة بوصلة رياضيات ١\nالاسم: ${name}\nرمز المتابعة: ${token}`;
+    $('#recoveryRequestResult').innerHTML=`
+      <div class="recovery-result success">
+        <strong>تم إرسال الطلب بنجاح</strong>
+        <p>احفظي رمز المتابعة التالي، ثم أرسليه إلى مدير المنصة بعد التواصل معه للتحقق من هويتك.</p>
+        <code class="recovery-code" dir="ltr">${esc(token)}</code>
+        <small>تنتهي صلاحية الطلب: ${esc(recoveryDate(result?.expires_at))}</small>
+        <div class="recovery-actions">
+          <button id="copyRecoveryCodeBtn" class="secondary" type="button">نسخ الرمز</button>
+          <button id="copyRecoveryMessageBtn" class="secondary" type="button">نسخ رسالة الطلب</button>
+          <button id="checkRecoveryNowBtn" class="primary" type="button">متابعة الطلب</button>
+        </div>
+      </div>`;
+    $('#recoveryTokenInput').value=token;
+    $('#copyRecoveryCodeBtn').onclick=()=>copyText(token);
+    $('#copyRecoveryMessageBtn').onclick=()=>copyText(requestMessage);
+    $('#checkRecoveryNowBtn').onclick=()=>{switchRecoveryPanel('check');checkAccessRecovery(token)};
+  }catch(error){toast(translateError(error.message),'error')}
+  finally{setBusy(button,false)}
+}
+async function checkAccessRecovery(token,button=null){
+  const clean=String(token||'').trim();
+  const resultBox=$('#recoveryCheckResult');
+  if(!clean){toast('أدخلي رمز المتابعة.','error');return}
+  if(!state.backend?.getAccessRecoveryResult){toast('حدّثي ملفات المنصة وشغّلي ملف الاستعادة في Supabase.','error');return}
+  if(button)setBusy(button,true,'جارٍ التحقق...');
+  resultBox.innerHTML='<div class="loading">جارٍ التحقق من الطلب...</div>';
+  try{
+    const result=await state.backend.getAccessRecoveryResult(clean);
+    const status=result?.status||'invalid';
+    if(status==='approved'&&result.membership_number){
+      resultBox.innerHTML=`
+        <div class="recovery-result approved">
+          <strong>تمت الموافقة على طلبك</strong>
+          <p>رقم الدخول المسجل باسم <b>${esc(result.full_name||'العضو')}</b> هو:</p>
+          <code class="recovered-number" dir="ltr">${esc(result.membership_number)}</code>
+          <div class="recovery-actions"><button id="copyRecoveredNumberBtn" class="primary" type="button">نسخ رقم الدخول</button><button id="goLoginBtn" class="secondary" type="button">العودة لتسجيل الدخول</button></div>
+        </div>`;
+      $('#copyRecoveredNumberBtn').onclick=()=>copyText(result.membership_number);
+      $('#goLoginBtn').onclick=()=>{closeModal();switchAuth('login');$('#loginMemberNumber').value=result.membership_number};
+      return;
+    }
+    const messages={
+      open:['طلبك قيد المراجعة','تحققي من أن مدير المنصة استلم رمز المتابعة، ثم أعيدي الفحص لاحقًا.'],
+      rejected:['تعذر اعتماد الطلب','راجعي مدير المنصة للتحقق من بيانات الحساب أو أرسلي طلبًا جديدًا.'],
+      expired:['انتهت صلاحية الطلب','أرسلي طلب استعادة جديدًا؛ فالطلبات صالحة لمدة ٤٨ ساعة.'],
+      invalid:['رمز المتابعة غير صحيح','تأكدي من نسخ الرمز كاملًا دون مسافات.']
+    };
+    const [title,message]=messages[status]||messages.invalid;
+    resultBox.innerHTML=`<div class="recovery-result ${esc(status)}"><strong>${title}</strong><p>${message}</p>${result?.admin_note?`<div class="recovery-admin-note">ملاحظة المدير: ${esc(result.admin_note)}</div>`:''}${result?.expires_at?`<small>تنتهي الصلاحية: ${esc(recoveryDate(result.expires_at))}</small>`:''}</div>`;
+  }catch(error){resultBox.innerHTML='';toast(translateError(error.message),'error')}
+  finally{if(button)setBusy(button,false)}
 }
 function switchAuth(which){const login=which==='login';$('#loginTab').classList.toggle('active',login);$('#signupTab').classList.toggle('active',!login);$('#loginTab').setAttribute('aria-selected',login);$('#signupTab').setAttribute('aria-selected',!login);$('#loginForm').classList.toggle('hidden',!login);$('#signupForm').classList.toggle('hidden',login)}
 async function handleLogin(e){
@@ -194,8 +299,8 @@ function renderSupervisorNeeds(){$('#supervisorNeeds').innerHTML=`<table class="
 async function updateNeedStatus(id,status){try{await state.backend.updateNeedStatus(id,status);const n=state.allNeeds.find(x=>String(x.id)===String(id));if(n)n.status=status;toast('تم تحديث حالة الطلب.','success')}catch(e){toast(e.message,'error')}}
 function exportNeedsCsv(){const headers=['العضو','نوع الاحتياج','المجال','التفاصيل','الحالة','التاريخ'];const lines=[headers,...state.allNeeds.map(n=>[n.requester,n.need_type,n.skill_name,n.details,statusText[n.status],n.created_at])].map(row=>row.map(x=>`"${String(x??'').replaceAll('"','""')}"`).join(','));const blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`احتياجات_ملتقى_الرياضيات_${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(a.href)}
 
-async function loadContent(){if(!isStaff())return;const tab=$('.content-tabs button.active')?.dataset.contentTab||'questions';if(tab==='questions')await loadAdminQuestions();if(tab==='courses')await loadAdminCourses();if(tab==='announcements')await loadAdminAnnouncements();if(tab==='members'&&state.profile?.role==='admin')await loadAdminMembers()}
-function switchContentTab(tab){$$('.content-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.contentTab===tab));$$('.content-tab').forEach(x=>x.classList.toggle('active',x.id===`content${tab[0].toUpperCase()+tab.slice(1)}`));if(tab==='questions')loadAdminQuestions();if(tab==='courses')loadAdminCourses();if(tab==='announcements')loadAdminAnnouncements();if(tab==='members'&&state.profile?.role==='admin')loadAdminMembers()}
+async function loadContent(){if(!isStaff())return;const tab=$('.content-tabs button.active')?.dataset.contentTab||'questions';if(tab==='questions')await loadAdminQuestions();if(tab==='courses')await loadAdminCourses();if(tab==='announcements')await loadAdminAnnouncements();if(tab==='members'&&state.profile?.role==='admin')await loadAdminMembers();if(tab==='recoveries'&&state.profile?.role==='admin')await loadAdminRecoveries()}
+function switchContentTab(tab){$$('.content-tabs button').forEach(b=>b.classList.toggle('active',b.dataset.contentTab===tab));$$('.content-tab').forEach(x=>x.classList.toggle('active',x.id===`content${tab[0].toUpperCase()+tab.slice(1)}`));if(tab==='questions')loadAdminQuestions();if(tab==='courses')loadAdminCourses();if(tab==='announcements')loadAdminAnnouncements();if(tab==='members'&&state.profile?.role==='admin')loadAdminMembers();if(tab==='recoveries'&&state.profile?.role==='admin')loadAdminRecoveries()}
 async function loadAdminQuestions(){state.adminQuestions=await state.backend.adminListQuestions();$('#adminQuestions').innerHTML=`<table class="data-table"><thead><tr><th>العنوان</th><th>المجال</th><th>المستوى</th><th>تشخيصي</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>${state.adminQuestions.map(q=>`<tr><td>${esc(q.title)}</td><td>${esc(q.skills?.name||skillName(q.skill_id))}</td><td>${esc(q.difficulty)}</td><td>${q.is_diagnostic?'نعم':'لا'}</td><td>${q.active===false?'متوقف':'نشط'}</td><td><div class="table-actions"><button class="edit" data-edit-question="${q.id}">تعديل</button><button class="toggle" data-toggle-question="${q.id}" data-active="${q.active!==false}">${q.active===false?'تفعيل':'إيقاف'}</button></div></td></tr>`).join('')}</tbody></table>`}
 function adminQuestionAction(e){const edit=e.target.dataset.editQuestion,toggle=e.target.dataset.toggleQuestion;if(edit)questionForm(state.adminQuestions.find(q=>String(q.id)===String(edit)));if(toggle)toggleQuestion(toggle,e.target.dataset.active==='true')}
 async function toggleQuestion(id,current){try{await state.backend.toggleQuestion(id,!current);toast('تم تحديث السؤال.','success');loadAdminQuestions()}catch(e){toast(e.message,'error')}}
@@ -216,4 +321,38 @@ async function loadAdminMembers(){
 async function updateMemberRole(id,role){
   try{await state.backend.updateProfileRole(id,role);toast('تم تحديث صلاحية الحساب.','success');await loadAdminMembers()}catch(e){toast(e.message,'error')}
 }
+
+const recoveryAdminStatus={open:'بانتظار المراجعة',approved:'تمت الموافقة',rejected:'مرفوض',expired:'منتهي'};
+async function loadAdminRecoveries(){
+  if(state.profile?.role!=='admin')return;
+  const container=$('#adminRecoveries');
+  container.innerHTML='<div class="loading">جارٍ تحميل طلبات الاستعادة...</div>';
+  try{
+    const [requests,members]=await Promise.all([state.backend.adminListAccessRecoveries(),state.backend.adminListProfiles()]);
+    state.adminRecoveries=Array.isArray(requests)?requests:[];
+    state.adminMembers=Array.isArray(members)?members:[];
+    if(!state.adminRecoveries.length){container.innerHTML='<div class="empty-state">لا توجد طلبات استعادة حتى الآن.</div>';return}
+    container.innerHTML=`<table class="data-table recovery-admin-table"><thead><tr><th>الاسم المطلوب</th><th>وقت الطلب</th><th>الحالة</th><th>الحساب المطابق</th><th>الإجراء</th></tr></thead><tbody>${state.adminRecoveries.map(request=>{
+      const open=request.status==='open';
+      const options=state.adminMembers.filter(member=>member.active!==false).map(member=>`<option value="${member.id}" ${request.profile_id===member.id?'selected':''}>${esc(member.full_name)} — ${esc(member.membership_number||'دون رقم')}</option>`).join('');
+      return `<tr data-recovery-row="${request.id}"><td><strong>${esc(request.requested_name)}</strong>${request.admin_note?`<small class="table-note">${esc(request.admin_note)}</small>`:''}</td><td>${formatDate(request.created_at)}<small class="table-note">ينتهي: ${formatDate(request.expires_at)}</small></td><td><span class="status recovery-${esc(request.status)}">${esc(recoveryAdminStatus[request.status]||request.status)}</span></td><td>${open?`<select data-recovery-profile><option value="">اختر حساب العضو</option>${options}</select>`:`${esc(request.matched_name||'—')}<small class="table-note">${esc(request.membership_number||'')}</small>`}</td><td>${open?`<div class="table-actions"><button class="edit" data-approve-recovery="${request.id}">موافقة</button><button class="toggle" data-reject-recovery="${request.id}">رفض</button></div>`:'—'}</td></tr>`;
+    }).join('')}</tbody></table>`;
+  }catch(error){container.innerHTML='<div class="empty-state">تعذر تحميل طلبات الاستعادة.</div>';toast(translateError(error.message),'error')}
+}
+async function adminRecoveryAction(e){
+  const approve=e.target.dataset.approveRecovery;
+  const reject=e.target.dataset.rejectRecovery;
+  const requestId=approve||reject;
+  if(!requestId)return;
+  const row=e.target.closest('[data-recovery-row]');
+  const profileId=row?.querySelector('[data-recovery-profile]')?.value||null;
+  if(approve&&!profileId){toast('اختاري حساب العضو بعد التحقق من هويته.','error');return}
+  const action=approve?'approved':'rejected';
+  const confirmation=approve?'هل تم التحقق من هوية العضو وتريدين إظهار رقم دخوله له؟':'هل تريدين رفض طلب الاستعادة؟';
+  if(!confirm(confirmation))return;
+  setBusy(e.target,true,approve?'جارٍ الاعتماد...':'جارٍ الرفض...');
+  try{await state.backend.resolveAccessRecovery(requestId,profileId,action);toast(approve?'تم اعتماد طلب الاستعادة.':'تم رفض الطلب.','success');await loadAdminRecoveries()}
+  catch(error){toast(translateError(error.message),'error');setBusy(e.target,false)}
+}
+
 init();
